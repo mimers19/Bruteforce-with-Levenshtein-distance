@@ -1,0 +1,1 @@
+C:\Users\DELL\Documents\Studia\CUDA\Bruteforce-with-Levenshtein-distance\BruteforceWithoutGPU\x64\Debug\BruteforceWithoutGPU.exe

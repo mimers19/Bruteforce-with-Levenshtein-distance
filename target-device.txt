@@ -1,0 +1,13 @@
+Device Number: 0
+  Device name: NVIDIA GeForce GTX 1650 Ti
+  Memory Clock Rate (KHz): 6001000
+  Memory Bus Width (bits): 128
+  Peak Memory Bandwidth (GB/s): 192.032
+  Total global memory: 4095MB
+  Total shared memory per block: 48KB
+  Total registers per block: 65536
+  Warp size: 32
+  Max threads per block: 1024
+  Max threads dimensions: (1024, 1024, 64)
+  Max grid dimensions: (2147483647, 65535, 65535)
+

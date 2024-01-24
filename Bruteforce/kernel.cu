@@ -66,44 +66,35 @@ __device__ void arrToHex(const uint8_t* arr, size_t size, char* output) {
 }
 
 __device__ void numberToByteArr(uint32_t number, uint8_t output[4]) {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 2; ++i) {
         output[i] = (number >> (i * 8)) & 0xFF;
     }
 }
 
 __device__ void codeXOR(const uint8_t* arr, const uint8_t* key, uint8_t output[39]) {
     for (size_t i = 0; i < 39; ++i) {
-        output[i] = arr[i] ^ key[i % 4];
+        output[i] = arr[i] ^ key[i % 2];
     }
 }
 
-__global__ void decrypt(int N, uint8_t* arr1, uint8_t* arr2, uint8_t* out_score) {
-    uint8_t min = 40;
+__global__ void decrypt(uint8_t* arr1, uint8_t* arr2, uint8_t* out_score) {
     unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int index = threadIdx.y;
-    int stride = blockDim.y;
-    uint8_t key1[4];
-    uint8_t key2[4];
+    unsigned int j = blockIdx.y * blockDim.y + threadIdx.y;
+    uint8_t key1[2];
+    uint8_t key2[2];
     numberToByteArr(i, key1);
-    for (unsigned int j = index; j <= 0xFFFFFFFF; j += stride) {
-        numberToByteArr(j, key2);
-        uint8_t arr1XOR[39];
-        uint8_t arr2XOR[39];
-        codeXOR(arr1, key1, arr1XOR);
-        codeXOR(arr2, key2, arr2XOR);
-        char arr1XORstring[79];
-        char arr2XORstring[79];
-        arrToHex(arr1XOR, 39, arr1XORstring);
-        arrToHex(arr2XOR, 39, arr2XORstring);
-        int score = countLevenshteinDistance(arr1XORstring, arr2XORstring);
-
-        if (score < min) {
-            min = score;
-        }
-    }
-
-    if (min < out_score[0]) {
-        out_score[0] = min;
+    numberToByteArr(j, key2);
+    uint8_t arr1XOR[39];
+    uint8_t arr2XOR[39];
+    codeXOR(arr1, key1, arr1XOR);
+    codeXOR(arr2, key2, arr2XOR);
+    char arr1XORstring[79];
+    char arr2XORstring[79];
+    arrToHex(arr1XOR, 39, arr1XORstring);
+    arrToHex(arr2XOR, 39, arr2XORstring);
+    int score = countLevenshteinDistance(arr1XORstring, arr2XORstring);
+    if (score < 20) {
+        out_score[0] = score;
         out_score[1] = key1[0];
         out_score[2] = key1[1];
         out_score[3] = key1[2];
@@ -118,10 +109,9 @@ __global__ void decrypt(int N, uint8_t* arr1, uint8_t* arr2, uint8_t* out_score)
 
 
 int main() {
-    printf("Start");
+    printf("Start\n");
 
     // Rozpoczęcie pomiaru czasu
-    int N = 4294836225;
     float time;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -136,10 +126,10 @@ int main() {
     uint8_t* d_array2;
     cudaMalloc(&d_array2, size);
 
-    // Allocate Unified Memory – accessible from CPU or GPU
-    size_t size_u = 9 * sizeof(uint8_t);   //  {calculated_distance, 1p1b, 1p2b, 1p3b, 1p4b, 2p1b, 2p2b, 2p3b, 2p4b}
-    uint8_t* score;
-    cudaMallocManaged(&score, size_u);
+    uint8_t score[9];
+    size_t size_u = 9 * sizeof(uint8_t);   //  {calculated_distance, 1p1b, 1p2b, 2p1b, 2p2b}
+    uint8_t* d_score;
+    cudaMalloc(&d_score, size_u);
 
 
     //Kopiowanie zmiennych do GPU
@@ -147,11 +137,13 @@ int main() {
     cudaMemcpy(d_array2, array2, size, cudaMemcpyHostToDevice);
 
     // Uruchomienie kernela
-    dim3 thredsPerBlock(1024, 1, 1);
-    dim3 numBlocks(4194303, 65535);
-    decrypt << <numBlocks, thredsPerBlock >> > (N, d_array1, d_array2, score);
+    dim3 thredsPerBlock(32, 32, 1);
+    dim3 numBlocks(2048, 2048, 1);
+    decrypt << <numBlocks, thredsPerBlock >> > (d_array1, d_array2, d_score);
 
     cudaDeviceSynchronize();
+
+    cudaMemcpy(score, d_score, size_u, cudaMemcpyDeviceToHost);
 
     // Zakończenie pomiaru czasu
     cudaEventRecord(stop, 0);
@@ -167,7 +159,7 @@ int main() {
 // Zwolnienie pamięci
     cudaFree(d_array1);
     cudaFree(d_array2);
-    cudaFree(score);
+    cudaFree(d_score);
 
     return 0;
 }
